@@ -1,0 +1,84 @@
+---
+- hosts: localhost
+  gather_facts: no
+  module_defaults:
+          group/aws:
+                  region: "us-east-2"
+  tasks:
+          - name: Create VPC
+            ec2_vpc_net:
+                    name: Module5
+                    cidr_block: 10.0.0.0/16
+                    tags:
+                            Name: Module5
+                    state: present
+            register: vpc
+          
+          - name: debug
+            debug: var=vpc
+
+          - name: Create Public Subnets
+            ec2_vpc_subnet:
+                    tags:
+                            Name: Module5 public
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    cidr: 10.0.1.0/24
+                    state: present
+            register: public_subnet
+
+          - name: Create Private Subnets
+            ec2_vpc_subnet:
+                    tags:
+                            Name: Module5 private
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    cidr: 10.0.2.0/24
+                    state: present
+            register: private_subnet
+
+          - name : Create Internet Gateway
+            ec2_vpc_igw:
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    tags:
+                            Name: Module5 IGW
+                    state: present
+            register: igw
+
+          - name: debug
+            debug: var=igw
+
+          - name: Create Public Subnet Route Table
+            ec2_vpc_route_table:
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    tags:
+                            Name: Module5
+                    subnets:
+                            - "{{ public_subnet.subnet.id }}"
+
+                    routes:
+                            - dest: 0.0.0.0/0
+                              gateway_id: "{{ igw.gateway_id }}"
+                    state: present
+
+          - name: Create NAT for Private Subnets
+            ec2_vpc_nat_gateway:
+                    subnet_id: "{{ private_subnet.subnet.id }}"
+                    state: present
+                    if_exist_do_not_create: true
+            register: nat
+
+          - name: debug
+            debug: var=nat
+
+          - name: Create Security Groups
+            ec2_group:
+                    name: Module5-dev-sg
+                    description: Development security group
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    rules:
+                            - proto: tcp
+                              ports:
+                                      - 22
+                                      - 80
+                              cidr_ip: 0.0.0.0/0
+                              rule_desc: allow all to ports 22 and 80
+                    state: present

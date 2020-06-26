@@ -1,0 +1,22 @@
+---
+- hosts: al2
+  become: yes
+  tasks:
+          - name: Check packages for nginx
+            package_facts:
+                    manager: "auto"
+          - name: Install nginx
+            when: "'nginx' not in ansible_facts.packages"
+            shell: "amazon-linux-extras install nginx1 -y"
+          - name: Start/Enable nginx
+            service:
+                    name: nginx
+                    state: started
+                    enabled: true
+          - name: Copy index.html
+            copy:
+                    src: ../var/www/html/index.html
+                    dest: /usr/share/nginx/html/index.html
+                    owner: nginx
+                    group: nginx
+
