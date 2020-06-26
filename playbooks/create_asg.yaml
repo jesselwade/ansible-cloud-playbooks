@@ -10,8 +10,8 @@
           - name: Create AutoScale group for EC2
             ec2_asg:
                     name: m5asg-ig
-                    load_balancers:
-                            - "mod5-nlb"
+                    #load_balancers:
+                            # - "mod5-nlb"
                     availability_zones:
                             - "us-east-2a"
                             - "us-east-2b"

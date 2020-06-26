@@ -1,0 +1,18 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars:
+          s3_id: ""
+          s3_config_id: ""
+  module_defaults:
+          group/aws:
+                  region: "us-east-2"
+  tasks:
+          - name: Create IAM policy to access s3
+            iam_policy:
+
+          - name: Create IAM policy to access s3 config
+            iam_policy:
+
+
+

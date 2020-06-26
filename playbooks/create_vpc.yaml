@@ -24,6 +24,7 @@
                     vpc_id: "{{ vpc.vpc.id }}"
                     cidr: 10.0.1.0/24
                     az: us-east-2a
+                    map_public: yes
                     state: present
             register: public_subnet1
 
@@ -34,6 +35,7 @@
                     vpc_id: "{{ vpc.vpc.id }}"
                     cidr: 10.0.2.0/24
                     az: us-east-2b
+                    map_public: yes
                     state: present
             register: public_subnet2
 
