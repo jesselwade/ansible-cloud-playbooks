@@ -1,0 +1,31 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars:
+          ami_id: "ami-026dea5602e368e96"
+          iam_nginx_role: ""
+          iam_app_role: ""
+
+  module_defaults:
+          group/aws:
+                  region: "us-east-2"
+  tasks:
+        - name: Create nginx web launch template
+          ec2_launch_template:
+                name: "m5nginx"
+                image_id: "{{ ami_id }}"
+                key_name: auburn
+                instance_type: t3.nano
+                iam_instance_profile: "{{ iam_nginx_role }}"
+                user_data: "{{ lookup('file', '../ec2-scripts/ec2-nginx-latest.sh') | b64encode }}"
+
+
+        - name: Create jetty/ig app launch template
+          ec2_launch_template:
+                name: "m5prod"
+                image_id: "{{ ami_id }}"
+                key_name: auburn
+                instance_type: t3.micro
+                iam_instance_profile: "{{ iam_app_role }}"
+                user_data: "{{ lookup('file', '../ec2-scripts/ec2-prod-latest.sh') | b64encode }}"
+

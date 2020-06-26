@@ -1,0 +1,32 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars:
+          ami_id: "ami-026dea5602e368e96"
+  module_defaults:
+          group/aws:
+                  region: "us-east-2"
+  tasks:
+          - name: Create AutoScale group for EC2
+            ec2_asg:
+                    name: m5asg-ig
+                    load_balancers:
+                            - "mod5-nlb"
+                    availability_zones:
+                            - "us-east-2a"
+                            - "us-east-2b"
+                    launch_template:
+                            version: "1"
+                            launch_template_name: "m5nginx"
+                    min_size: 2
+                    max_size: 4
+                    desired_capacity: 2
+                    vpc_zone_identifier:
+                            - "{{ public_subnet1.subnet.id }}"
+                            - "{{ public_subnet2.subnet.id }}"
+                    health_check_type: ELB
+                    health_check_period: 300
+                    wait_for_instances: yes
+                            
+
+

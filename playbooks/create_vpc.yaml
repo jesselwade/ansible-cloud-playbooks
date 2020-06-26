@@ -17,21 +17,33 @@
           - name: debug
             debug: var=vpc
 
-          - name: Create Public Subnets
+          - name: "Create Public Subnet 1"
             ec2_vpc_subnet:
                     tags:
-                            Name: Module5 public
+                            Name: Module5 public1
                     vpc_id: "{{ vpc.vpc.id }}"
                     cidr: 10.0.1.0/24
+                    az: us-east-2a
                     state: present
-            register: public_subnet
+            register: public_subnet1
+
+          - name: "Create Public Subnet 2"
+            ec2_vpc_subnet:
+                    tags:
+                            Name: Module5 public2
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    cidr: 10.0.2.0/24
+                    az: us-east-2b
+                    state: present
+            register: public_subnet2
+
 
           - name: Create Private Subnets
             ec2_vpc_subnet:
                     tags:
                             Name: Module5 private
                     vpc_id: "{{ vpc.vpc.id }}"
-                    cidr: 10.0.2.0/24
+                    cidr: 10.0.3.0/24
                     state: present
             register: private_subnet
 
@@ -52,7 +64,8 @@
                     tags:
                             Name: Module5
                     subnets:
-                            - "{{ public_subnet.subnet.id }}"
+                            - "{{ public_subnet1.subnet.id }}"
+                            - "{{ public_subnet2.subnet.id }}"
 
                     routes:
                             - dest: 0.0.0.0/0
@@ -62,14 +75,40 @@
           - name: Create NAT for Private Subnets
             ec2_vpc_nat_gateway:
                     subnet_id: "{{ private_subnet.subnet.id }}"
-                    state: present
                     if_exist_do_not_create: true
+                    state: present
+                    wait: yes
             register: nat
 
           - name: debug
             debug: var=nat
 
-          - name: Create Security Groups
+          - name: Create Application Target Group
+            elb_target_group:
+                    name: Module5tg
+                    protocol: tcp
+                    port: 80
+                    health_check_protocol: http
+                    stickiness_enabled: no
+                    stickiness_type: source_ip
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    state: present
+
+          - name: Create Network Load Balancer
+            elb_network_lb:
+                    name: mod5-nlb
+                    subnets:
+                            - "{{ public_subnet1.subnet.id }}"
+                            - "{{ public_subnet2.subnet.id }}"
+                    listeners:
+                            - Protocol: TCP
+                              Port: 443
+                              DefaultActions:
+                                      - Type: forward
+                                        TargetGroupName: Module5tg
+                    state: present
+
+          - name: Create public web Security Group
             ec2_group:
                     name: Module5-dev-sg
                     description: Development security group
@@ -79,6 +118,53 @@
                               ports:
                                       - 22
                                       - 80
+                                      - 443
                               cidr_ip: 0.0.0.0/0
                               rule_desc: allow all to ports 22 and 80
                     state: present
+
+          - name: Create postgres client security group
+            ec2_group:
+                    name: image-gallery-postgres-tag
+                    description: Postgres client security group
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    rules:
+                            - proto: tcp
+                              ports:
+                                      - 5432
+                              rule_desc: allows access to postgres
+                    state: present
+            register: postgrestag
+
+          - name: Create postgres server security group
+            ec2_group:
+                    name: image-gallery-postgres
+                    description: Postgres service security group
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    rules:
+                            - proto: tcp
+                              ports:
+                                      - 5432
+                              group_id: "{{ postgrestag.group_id }}"
+                              rule_desc:
+                    rules_egress:
+                            - proto: tcp
+                              ports:
+                                      - 5432
+                              rule_desc: allow sg tagged objects into postgres
+                    state: present
+            register: postgressg
+
+          - name: Update postgres client security group
+            ec2_group:
+                    name: image-gallery-postgres-tag
+                    description: Postgres client security group
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    rules:
+                            - proto: tcp
+                              ports:
+                                      - 5432
+                              group_id: "{{ postgressg.group_id }}"
+                              rule_desc: allows access to postgres
+                    state: present
+            
