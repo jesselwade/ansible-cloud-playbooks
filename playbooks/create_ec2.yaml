@@ -15,9 +15,12 @@
                     image: "{{ ami_id }}"
                     instance_tags:
                             Name: Module5 web
+                            Module: 5
                     wait: yes
                     vpc_subnet_id: "{{ public_subnet.subnet.id }}"
+                    assign_public_ip: yes
                     exact_count: 2
                     count_tag:
                             Name: Module5 web
+                            Module: 5
 
