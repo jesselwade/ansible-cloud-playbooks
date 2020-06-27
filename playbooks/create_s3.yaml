@@ -6,10 +6,10 @@
                   region: "us-east-2"
   tasks:
           - s3_bucket:
-                  name: edu.au.cc.jzw.mod5.image-gallery
+                  name: edu.au.cc.jzw.image-gallery
                   state: present
 
           - s3_bucket:
-                  name: edu.au.cc.jzw.mod5.image-gallery-config
+                  name: edu.au.cc.jzw.image-gallery-config
                   state: present
 

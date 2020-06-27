@@ -40,14 +40,27 @@
             register: public_subnet2
 
 
-          - name: Create Private Subnets
+          - name: Create Private Subnet1
             ec2_vpc_subnet:
                     tags:
-                            Name: Module5 private
+                            Name: Module5 private1
                     vpc_id: "{{ vpc.vpc.id }}"
                     cidr: 10.0.3.0/24
+                    az: us-east-2c
+                    map_public: yes
                     state: present
-            register: private_subnet
+            register: private_subnet1
+
+          - name: Create Private Subnet2
+            ec2_vpc_subnet:
+                    tags:
+                            Name: Module5 private2
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    cidr: 10.0.4.0/24
+                    az: us-east-2b
+                    state: present
+            register: private_subnet2
+
 
           - name : Create Internet Gateway
             ec2_vpc_igw:
@@ -76,7 +89,7 @@
 
           - name: Create NAT for Private Subnets
             ec2_vpc_nat_gateway:
-                    subnet_id: "{{ private_subnet.subnet.id }}"
+                    subnet_id: "{{ private_subnet1.subnet.id }}"
                     if_exist_do_not_create: true
                     state: present
                     wait: yes
@@ -109,7 +122,40 @@
                                       - Type: forward
                                         TargetGroupName: Module5tg
                     state: present
+            register: nlb
 
+          - name: Debuging route53
+            route53_info:
+                    query: hosted_zone
+            register: hosted_zones
+          - debug: var=hosted_zones
+
+          - name: Debuging route53
+            route53_info:
+                    query: record_sets
+                    hosted_zone_id: "{{ hosted_zones.HostedZones[0].Id }}"
+            register: records
+          - debug: var=records
+
+
+          - name: "Disassociate current NLB with domain via Route 53"
+            route53:
+                    state: absent
+                    record: novawoodworks.co
+                    type: A
+                    value: "{{ records.ResourceRecordSets[0].AliasTarget.DNSName }}"
+                    hosted_zone_id: "{{ hosted_zones.HostedZones[0].Id }}"
+
+          - name: "Associate new NLB with domain via Route 53"
+            route53:
+                    state: present
+                    record: novawoodworks.co
+                    type: A
+                    value: "{{ nlb.dns_name }}"
+                    alias: True
+                    alias_hosted_zone_id: "{{ hosted_zones.HostedZones[0].Id }}"
+
+                    
           - name: Create public web Security Group
             ec2_group:
                     name: Module5-dev-sg
@@ -124,6 +170,27 @@
                               cidr_ip: 0.0.0.0/0
                               rule_desc: allow all to ports 22 and 80
                     state: present
+            register: nginxsg
+
+          - name: Create private jetty Security Group
+            ec2_group:
+                    name: Module5-app-sg
+                    description: Application security group
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    rules:
+                            - proto: tcp
+                              ports:
+                                      - 22
+                              cird_ip: 0.0.0.0/0
+                            - proto: tcp
+                              ports:
+                                      - 5555
+                                      - 443
+                              cidr_ip: 10.0.0.0/16
+                              rule_desc: allow vpc in on 5555 and 443
+                    state: present
+            register: jettysg
+
 
           - name: Create postgres client security group
             ec2_group:
@@ -135,6 +202,11 @@
                               ports:
                                       - 5432
                               rule_desc: allows access to postgres
+                    rules_egress:
+                            - proto: tcp
+                              ports:
+                                      - 5432
+                              rule_desc: allows inbound from postgres
                     state: present
             register: postgrestag
 
@@ -169,4 +241,4 @@
                               group_id: "{{ postgressg.group_id }}"
                               rule_desc: allows access to postgres
                     state: present
-            
+

@@ -5,15 +5,30 @@
           group/aws:
                   region: "us-east-2"
   tasks:
-        - rds:
-                command: create
-                instance_name: Module5-image-gallery
-                db_engine: postgres
-                size: 20
-                instance_type: db.t2.micro
-                username: image_gallery
-                password: randomb4awsSMkicksin
-                security_groups: "{{ postgressg.group_id }}"
-                tags:
-                        Name: image-gallery
-                        Module: 5
+          - rds_subnet_group:
+                  state: present
+                  name: m5-rds-subnet
+                  description: "M5 RDS group"
+                  subnets:
+                          - "{{ private_subnet1.subnet.id }}"
+                          - "{{ private_subnet2.subnet.id }}"
+            register: rdssn
+
+          - name: Create RDS instance
+            rds:
+                  command: create
+                  instance_name: image-gallery
+                  db_engine: postgres
+                  db_name: image_gallery
+                  size: 20
+                  instance_type: db.t2.micro
+                  username: postgres
+                  password: randomb4awsSMkicksin
+                  subnet: "{{ rdssn.subnet_group.name }}"
+                  vpc_security_groups: "{{ postgressg.group_id }}"
+                  tags:
+                          Name: image-gallery
+                          Module: 5
+            register: rds
+          - name: debug rds
+            debug: var=rds

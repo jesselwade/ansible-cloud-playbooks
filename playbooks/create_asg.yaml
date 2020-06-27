@@ -16,7 +16,6 @@
                             - "us-east-2a"
                             - "us-east-2b"
                     launch_template:
-                            version: "1"
                             launch_template_name: "m5nginx"
                     min_size: 2
                     max_size: 4
@@ -27,6 +26,23 @@
                     health_check_type: ELB
                     health_check_period: 300
                     wait_for_instances: yes
+
+          - name: Create AutoScale group for jetty
+            ec2_asg:
+                    name: m5asg-app-ig
+                    availability_zones:
+                            - "us-east-2c"
+                    launch_template:
+                            launch_template_name: "m5prod"
+                    min_size: 1
+                    max_size: 1
+                    desired_capacity: 1
+                    vpc_zone_identifier:
+                            - "{{ private_subnet1.subnet.id }}"
+                    health_check_type: ELB
+                    health_check_period: 300
+                    wait_for_instances: yes
+
                             
 
 
