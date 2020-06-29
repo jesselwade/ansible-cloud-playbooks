@@ -142,11 +142,9 @@
           - name: Create Network Load Balancer
             elb_network_lb:
                     name: mod5-nlb
-                    subnet_mappings:
-                            - SubnetId: "{{ public_subnet1.subnet.id }}"
-                              AllocationId: "{{ eipa.addresses[0].allocation_id }}"
-                            - SubnetId: "{{ public_subnet2.subnet.id }}"
-                              AllocationId: "{{ eipb.addresses[0].allocation_id }}"
+                    subnets: 
+                            - "{{ public_subnet1.subnet.id }}"
+                            - "{{ public_subnet2.subnet.id }}"
                     listeners:
                             - Protocol: TCP
                               Port: 443
@@ -154,7 +152,7 @@
                                       - Type: forward
                                         TargetGroupName: Module5tg
                     state: present
-            register: nlb
+            register: nlb                    
 
             #- name: Debuging route53
             #route53_info:
@@ -187,17 +185,16 @@
 
             #- name: "Associate new NLB with domain via Route 53"
             #route53:
-            #       state: create
+            #       command: create
             #       zone: novawoodworks.co
             #       record: novawoodworks.co
-            #       identifier: non-latency
+            #       identifier: novawoodworks.co
             #       type: A
-            #       ttl: 7200
             #       value: "{{ nlb.dns_name }}"
-            #       alias: True
+            #       alias: yes
             #       alias_hosted_zone_id: "{{ nlb.canonical_hosted_zone_id }}"
             #       overwrite: yes
-            #       wait: yes
+           
 
                     
           - name: Create public web Security Group
