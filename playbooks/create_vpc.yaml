@@ -89,14 +89,28 @@
 
           - name: Create NAT for Private Subnets
             ec2_vpc_nat_gateway:
-                    subnet_id: "{{ private_subnet1.subnet.id }}"
+                    subnet_id: "{{ public_subnet1.subnet.id }}"
                     if_exist_do_not_create: true
                     state: present
                     wait: yes
             register: nat
-
           - name: debug
             debug: var=nat
+
+          - name: Create Private Subnet Route Table
+            ec2_vpc_route_table:
+                    vpc_id: "{{ vpc.vpc.id }}"
+                    tags:
+                            Name: Module5-priv
+                    subnets:
+                            - "{{ private_subnet1.subnet.id }}"
+                            - "{{ private_subnet2.subnet.id }}"
+
+                    routes:
+                            - dest: 0.0.0.0/0
+                              gateway_id: "{{ nat.nat_gateway_id }}"
+                    state: present
+
 
           - name: Create Application Target Group
             elb_target_group:
@@ -109,12 +123,30 @@
                     vpc_id: "{{ vpc.vpc.id }}"
                     state: present
 
+          - name: Get Elastic IPs
+            ec2_eip_info:
+                    filters:
+                            tag:Name: eip1
+            register: eipa
+          
+          - debug: var=eipa
+          
+          - name: Second EIP
+            ec2_eip_info:
+                    filters:
+                            tag:Name: eip2
+            register: eipb
+
+          - debug: var=eipb
+
           - name: Create Network Load Balancer
             elb_network_lb:
                     name: mod5-nlb
-                    subnets:
-                            - "{{ public_subnet1.subnet.id }}"
-                            - "{{ public_subnet2.subnet.id }}"
+                    subnet_mappings:
+                            - SubnetId: "{{ public_subnet1.subnet.id }}"
+                              AllocationId: "{{ eipa.addresses[0].allocation_id }}"
+                            - SubnetId: "{{ public_subnet2.subnet.id }}"
+                              AllocationId: "{{ eipb.addresses[0].allocation_id }}"
                     listeners:
                             - Protocol: TCP
                               Port: 443
@@ -124,36 +156,48 @@
                     state: present
             register: nlb
 
-          - name: Debuging route53
-            route53_info:
-                    query: hosted_zone
-            register: hosted_zones
-          - debug: var=hosted_zones
+            #- name: Debuging route53
+            #route53_info:
+            #        query: hosted_zone
+            #register: hosted_zones
+            #- debug: var=hosted_zones
 
-          - name: Debuging route53
-            route53_info:
-                    query: record_sets
-                    hosted_zone_id: "{{ hosted_zones.HostedZones[0].Id }}"
-            register: records
-          - debug: var=records
+            #- name: Debuging route53
+            #route53_info:
+            #        query: record_sets
+            #        hosted_zone_id: "{{ hosted_zones.HostedZones[0].Id }}"
+            #register: records
+            #- debug: var=records
+            #- debug: var=records.ResourceRecordSets[0].AliasTarget.DNSName
+            #- debug: var=nlb.dns_name
 
+            #- name: "Disassociate current NLB with domain via Route 53"
+            #route53:
+            #        state: delete
+            #        zone: novawoodworks.co
+            #        record: novawoodworks.co
+            #        identifier: non-latency
+            #        type: A
+            #        value: ["{{ records.ResourceRecordSets[0].AliasTarget }}"]
+            #        alias: True
+            #        alias_hosted_zone_id: novawoodworks.co
+            #        wait: yes
+            #register: r53del
+            #- debug: var=r53del
 
-          - name: "Disassociate current NLB with domain via Route 53"
-            route53:
-                    state: absent
-                    record: novawoodworks.co
-                    type: A
-                    value: "{{ records.ResourceRecordSets[0].AliasTarget.DNSName }}"
-                    hosted_zone_id: "{{ hosted_zones.HostedZones[0].Id }}"
-
-          - name: "Associate new NLB with domain via Route 53"
-            route53:
-                    state: present
-                    record: novawoodworks.co
-                    type: A
-                    value: "{{ nlb.dns_name }}"
-                    alias: True
-                    alias_hosted_zone_id: "{{ hosted_zones.HostedZones[0].Id }}"
+            #- name: "Associate new NLB with domain via Route 53"
+            #route53:
+            #       state: create
+            #       zone: novawoodworks.co
+            #       record: novawoodworks.co
+            #       identifier: non-latency
+            #       type: A
+            #       ttl: 7200
+            #       value: "{{ nlb.dns_name }}"
+            #       alias: True
+            #       alias_hosted_zone_id: "{{ nlb.canonical_hosted_zone_id }}"
+            #       overwrite: yes
+            #       wait: yes
 
                     
           - name: Create public web Security Group
@@ -179,9 +223,10 @@
                     vpc_id: "{{ vpc.vpc.id }}"
                     rules:
                             - proto: tcp
-                              ports:
-                                      - 22
-                              cird_ip: 0.0.0.0/0
+                              from_port: 22
+                              to_port: 22
+                              cidr_ip: 0.0.0.0/0
+
                             - proto: tcp
                               ports:
                                       - 5555

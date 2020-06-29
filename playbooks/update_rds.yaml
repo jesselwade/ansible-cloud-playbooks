@@ -1,2 +1,11 @@
 ---
+- hosts: localhost
+  gather_facts: no
+  #vars:
+  module_defaults:
+          group/aws:
+                  region: "us-east-2"
+  tasks:
+          - name: Create tables in Postgres
+
 

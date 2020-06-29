@@ -1,6 +1,8 @@
 ---
 - hosts: localhost
   gather_facts: no
+  vars:
+          snap: "arn:aws:rds:us-east-2:700043635835:snapshot:image-gallery-final-snapshot"
   module_defaults:
           group/aws:
                   region: "us-east-2"
@@ -14,21 +16,34 @@
                           - "{{ private_subnet2.subnet.id }}"
             register: rdssn
 
-          - name: Create RDS instance
+          - name: "Create RDS instance (Better grab a coffee this takes a while)"
             rds:
-                  command: create
+                  command: restore
                   instance_name: image-gallery
-                  db_engine: postgres
-                  db_name: image_gallery
-                  size: 20
+                  snapshot: "{{ snap }}"
                   instance_type: db.t2.micro
-                  username: postgres
-                  password: randomb4awsSMkicksin
+                  #username: postgres
+                  #password: "{{ lookup('aws_secret', 'sec-ig-postgres') }}"
                   subnet: "{{ rdssn.subnet_group.name }}"
-                  vpc_security_groups: "{{ postgressg.group_id }}"
-                  tags:
-                          Name: image-gallery
-                          Module: 5
+                  #vpc_security_groups: "{{ postgressg.group_id }}"
+                  #tags:
+                  #        Name: image-gallery
+                  #        Module: 5
+                  wait: yes
+                  wait_timeout: 1200
             register: rds
-          - name: debug rds
-            debug: var=rds
+
+          - name: Check RDS security groups
+            rds_instance_info:
+                    db_instance_identifier: image-gallery
+            register: rdsinfo
+
+          - debug: var=rdsinfo
+
+          - name: Update RDS SG
+            when:
+                    (rdsinfo.instances[0].vpc_security_groups[0].vpc_security_group_id != "{{ postgressg.group_id }}")
+            rds:
+                    command: modify
+                    instance_name: image-gallery
+                    vpc_security_groups: "{{ postgressg.group_id }}"

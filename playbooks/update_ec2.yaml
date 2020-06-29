@@ -1,22 +1,44 @@
 ---
-- hosts: tag_Module_5
-  become: yes
+- hosts: localhost
+  gather_facts: no
+  module_defaults:
+          group/aws:
+                  region: "us-east-2"
   tasks:
-          - name: Check packages for nginx
-            package_facts:
-                    manager: "auto"
-          - name: Install nginx
-            when: "'nginx' not in ansible_facts.packages"
-            shell: "amazon-linux-extras install nginx1 -y"
-          - name: Start/Enable nginx
-            service:
-                    name: nginx
-                    state: started
-                    enabled: true
-          - name: Copy index.html
-            copy:
-                    src: ../var/www/html/index.html
-                    dest: /usr/share/nginx/html/index.html
-                    owner: nginx
-                    group: nginx
+          - name: "Get ec2 id for application instance"
+            ec2_instance_info:
+                    filters:
+                            instance-type: t3.micro
+                            subnet-id: "{{ public_subnet1.subnet.id }}"
+            register: ec2id
+          - debug: var=ec2id
+
+          - name: Check for existing interface
+            ec2_eni_info:
+                    filters:
+                            addresses.private-ip-address: 10.0.1.25
+                            vpc-id: "{{ vpc.vpc.id }}"
+
+            register: ec2info
+          - debug: var=ec2info
+
+          - name: Create ENI with static IP for application
+            when:
+                    (ec2info.network_interfaces|length == 0)
+            ec2_eni:
+                    eni_id: "{{ ec2id.instances[0].network_interfaces[0].network_interface_id }}"
+                    allow_reassignment: yes
+                    private_ip_address: 10.0.1.25
+                    subnet_id: "{{ public_subnet1.subnet.id }}"
+                    instance_id: "{{ ec2id.instances[0].instance_id }}"
+                    security_groups:
+                            - image-gallery-postgres-tag
+                            - Module5-app-sg
+                    device_index: 1
+                    attached: yes
+                    state: present
+            register: newENI
+
+            #- name: Attache new ENI to application ec2
+            #  ec2_eni:
 
